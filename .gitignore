@@ -1,0 +1,7 @@
+*.pdf
+*.csv
+/__pycache__/
+api.py
+*.duckdb
+test_jobspy.ipynb
+/scraper_env/
