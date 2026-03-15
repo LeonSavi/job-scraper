@@ -2,6 +2,8 @@ import csv
 import os
 
 import pandas as pd
+
+from time import sleep
 from scripts.jb_database import DatabaseVacancies
 from scripts.scraper_analyzer import JobAnalyzer
 
@@ -11,7 +13,7 @@ COUNTRIES = ['netherlands','belgium','germany','italy']
 CONFIGS = {
     'country': 'netherlands',
     'search_term':'data scientist',
-    'n_results':150, # get 150 results
+    'n_results':100, # get 150 results
     'hours_old':72, # job posting from the previous 72 hours
 }
 
@@ -39,6 +41,8 @@ if __name__=='__main__':
         out['ref_country'] = curr_country
 
         results.append(out)
+
+        sleep(10) # sleep to avoid IP block, i am still working on the proxy server part
 
     dataframe = pd.concat(results,ignore_index=True).reset_index(drop=True)
 
