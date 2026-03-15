@@ -28,7 +28,7 @@ os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 class JobAnalyzer():
 
     def __init__(self,configs:dict,
-                 HF_TOKEN:str,
+                 HF_TOKEN:str = None,
                  LLM_model:str = 'Qwen/Qwen2.5-7B-Instruct'
                  ):
 
@@ -38,33 +38,35 @@ class JobAnalyzer():
         self.connection = DatabaseVacancies()
         self.proxies = ProxiesChecker().get_valid_proxies()
 
-        
-        bits_config = BitsAndBytesConfig(load_in_4bit=True,
-                                         bnb_4bit_use_double_quant=True,
-                                         bnb_4bit_quant_type="nf4")
+        self.HF_TOKEN = HF_TOKEN
 
-        LLM_model_q = AutoModelForCausalLM.from_pretrained(
-            LLM_model,
-            quantization_config=bits_config,
-            device_map="auto",
-            token=HF_TOKEN
-        )
+        if self.HF_TOKEN != None:
+            bits_config = BitsAndBytesConfig(load_in_4bit=True,
+                                            bnb_4bit_use_double_quant=True,
+                                            bnb_4bit_quant_type="nf4")
 
-        self.pipe = pipeline("text-generation",
-                             model=LLM_model_q,
-                             device_map="auto",
-                             token=HF_TOKEN)
+            LLM_model_q = AutoModelForCausalLM.from_pretrained(
+                LLM_model,
+                quantization_config=bits_config,
+                device_map="auto",
+                token=self.HF_TOKEN
+            )
 
-        self.CV = self._get_CV()
+            self.pipe = pipeline("text-generation",
+                                model=LLM_model_q,
+                                device_map="auto",
+                                token=self.HF_TOKEN)
+
+            self.CV = self._get_CV()
 
 
-        self.map_transl = {'nl':'Helsinki-NLP/opus-mt-nl-en','de':"Helsinki-NLP/opus-mt-de-en"}
+            self.map_transl = {'nl':'Helsinki-NLP/opus-mt-nl-en','de':"Helsinki-NLP/opus-mt-de-en"}
 
-        self.trans_tokenizer = {'nl':MarianTokenizer.from_pretrained(self.map_transl['nl']),
-                                'de':MarianTokenizer.from_pretrained(self.map_transl['de'])}
-        
-        self.trans_model = {'nl':MarianMTModel.from_pretrained(self.map_transl['nl'],tie_word_embeddings=False),
-                                'de':MarianMTModel.from_pretrained(self.map_transl['de'],tie_word_embeddings=False)}
+            self.trans_tokenizer = {'nl':MarianTokenizer.from_pretrained(self.map_transl['nl']),
+                                    'de':MarianTokenizer.from_pretrained(self.map_transl['de'])}
+            
+            self.trans_model = {'nl':MarianMTModel.from_pretrained(self.map_transl['nl'],tie_word_embeddings=False),
+                                    'de':MarianMTModel.from_pretrained(self.map_transl['de'],tie_word_embeddings=False)}
 
 
     def scrape_jobs(self):
@@ -80,8 +82,13 @@ class JobAnalyzer():
             proxies=["localhost"]#+self.proxies,
         )
 
+        jobs['scrape_time'] = pd.Timestamp.now()
+
         jobs['lang_descr'] = jobs['description'].apply(self._detect_lang)
 
+        if not self.HF_TOKEN:
+            print("Returning Results without AI feature engineering")
+            return jobs
 
         print('''--- TRANSLATING ---''')
 
@@ -91,7 +98,6 @@ class JobAnalyzer():
             )
 
         print('''--- FINISHED TRANSLATION ---''')
-        jobs['scrape_time'] = pd.Timestamp.now()
 
         jobs['LLM_results'] = jobs['description'].apply(self._check_match)
 
